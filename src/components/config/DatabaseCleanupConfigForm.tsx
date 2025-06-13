@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "../ui/checkbox";
-import type { DatabaseCleanupConfig } from "@/types/config";
-import { formatDate } from "@/lib/utils";
+import type { ConfigState, DatabaseCleanupConfig } from "@/types/config";
+import { formatDate, updateNestedConfig } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -12,12 +12,11 @@ import {
 import { RefreshCw, Database } from "lucide-react";
 
 interface DatabaseCleanupConfigFormProps {
-  config: DatabaseCleanupConfig;
-  setConfig: React.Dispatch<React.SetStateAction<DatabaseCleanupConfig>>;
-  onAutoSave?: (config: DatabaseCleanupConfig) => void;
+  config: ConfigState;
+  setConfig: React.Dispatch<React.SetStateAction<ConfigState>>;
+  onAutoSave?: (config: ConfigState) => Promise<void>;
   isAutoSaving?: boolean;
 }
-
 
 // Helper to calculate cleanup interval in hours (should match backend logic)
 function calculateCleanupInterval(retentionSeconds: number): number {
@@ -46,36 +45,49 @@ export function DatabaseCleanupConfigForm({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
-    let newConfig = {
-      ...config,
-      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
-    };
+    const isCheckbox = type === "checkbox";
+    const checked = isCheckbox
+      ? (e.target as HTMLInputElement).checked
+      : undefined;
+    const newValue = isCheckbox ? checked : value;
 
-    // If enabling or changing retention, recalculate nextRun
+    // Step 1: Update the changed field (supports nested keys)
+    let newConfig = updateNestedConfig(config, name, newValue);
+
+    // Step 2: Handle nextRun updates based on retention logic
+    const isEnabledCheckbox = name === "cleanupConfig.enabled";
+    const isRetentionDays = name === "cleanupConfig.retentionDays";
+
     if (
-      (name === "enabled" && (e.target as HTMLInputElement).checked) ||
-      (name === "retentionDays" && config.enabled)
+      (isEnabledCheckbox && checked) ||
+      (isRetentionDays && config.cleanupConfig.enabled)
     ) {
       const now = new Date();
       const retentionSeconds =
-        name === "retentionDays"
+        name === "cleanupConfig.retentionDays"
           ? Number(value)
-          : Number(newConfig.retentionDays);
+          : Number(newConfig.cleanupConfig.retentionDays);
+
       const intervalHours = calculateCleanupInterval(retentionSeconds);
       const nextRun = new Date(now.getTime() + intervalHours * 60 * 60 * 1000);
-      newConfig = {
-        ...newConfig,
-        nextRun,
-      };
-    }
-    // If disabling, clear nextRun
-    if (name === "enabled" && !(e.target as HTMLInputElement).checked) {
-      newConfig = {
-        ...newConfig,
-        nextRun: undefined,
-      };
+
+      newConfig = updateNestedConfig(
+        newConfig,
+        "cleanupConfig.nextRun",
+        nextRun
+      );
     }
 
+    // Step 3: If disabled, clear nextRun
+    if (isEnabledCheckbox && !checked) {
+      newConfig = updateNestedConfig(
+        newConfig,
+        "cleanupConfig.nextRun",
+        undefined
+      );
+    }
+
+    // Step 4: Set config and auto-save
     setConfig(newConfig);
     if (onAutoSave) {
       onAutoSave(newConfig);
@@ -84,13 +96,13 @@ export function DatabaseCleanupConfigForm({
 
   // Predefined retention periods (in seconds, like schedule intervals)
   const retentionOptions: { value: number; label: string }[] = [
-    { value: 86400, label: "1 day" },        // 24 * 60 * 60
-    { value: 259200, label: "3 days" },      // 3 * 24 * 60 * 60
-    { value: 604800, label: "7 days" },      // 7 * 24 * 60 * 60
-    { value: 1209600, label: "14 days" },    // 14 * 24 * 60 * 60
-    { value: 2592000, label: "30 days" },    // 30 * 24 * 60 * 60
-    { value: 5184000, label: "60 days" },    // 60 * 24 * 60 * 60
-    { value: 7776000, label: "90 days" },    // 90 * 24 * 60 * 60
+    { value: 86400, label: "1 day" }, // 24 * 60 * 60
+    { value: 259200, label: "3 days" }, // 3 * 24 * 60 * 60
+    { value: 604800, label: "7 days" }, // 7 * 24 * 60 * 60
+    { value: 1209600, label: "14 days" }, // 14 * 24 * 60 * 60
+    { value: 2592000, label: "30 days" }, // 30 * 24 * 60 * 60
+    { value: 5184000, label: "60 days" }, // 60 * 24 * 60 * 60
+    { value: 7776000, label: "90 days" }, // 90 * 24 * 60 * 60
   ];
 
   return (
@@ -106,12 +118,12 @@ export function DatabaseCleanupConfigForm({
           <div className="flex items-center">
             <Checkbox
               id="cleanup-enabled"
-              name="enabled"
-              checked={config.enabled}
+              name="cleanupConfig.enabled"
+              checked={config.cleanupConfig.enabled}
               onCheckedChange={(checked) =>
                 handleChange({
                   target: {
-                    name: "enabled",
+                    name: "cleanupConfig.enabled",
                     type: "checkbox",
                     checked: Boolean(checked),
                     value: "",
@@ -130,7 +142,7 @@ export function DatabaseCleanupConfigForm({
             </label>
           </div>
 
-          {config.enabled && (
+          {config.cleanupConfig.enabled && (
             <div>
               <label className="block text-sm font-medium mb-2">
                 Data Retention Period
@@ -138,10 +150,10 @@ export function DatabaseCleanupConfigForm({
 
               <Select
                 name="retentionDays"
-                value={String(config.retentionDays)}
+                value={String(config.cleanupConfig.retentionDays)}
                 onValueChange={(value) =>
                   handleChange({
-                    target: { name: "retentionDays", value },
+                    target: { name: "cleanupConfig.retentionDays", value },
                   } as React.ChangeEvent<HTMLInputElement>)
                 }
               >
@@ -162,12 +174,15 @@ export function DatabaseCleanupConfigForm({
               </Select>
 
               <p className="text-xs text-muted-foreground mt-1">
-                Activities and events older than this period will be automatically deleted.
+                Activities and events older than this period will be
+                automatically deleted.
               </p>
               <div className="mt-2 p-2 bg-muted/50 rounded-md">
                 <p className="text-xs text-muted-foreground">
-                  <strong>Cleanup Frequency:</strong> The cleanup process runs automatically at optimal intervals:
-                  shorter retention periods trigger more frequent cleanups, longer periods trigger less frequent cleanups.
+                  <strong>Cleanup Frequency:</strong> The cleanup process runs
+                  automatically at optimal intervals: shorter retention periods
+                  trigger more frequent cleanups, longer periods trigger less
+                  frequent cleanups.
                 </p>
               </div>
             </div>
@@ -175,21 +190,27 @@ export function DatabaseCleanupConfigForm({
 
           <div className="flex gap-x-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Last Cleanup</label>
+              <label className="block text-sm font-medium mb-1">
+                Last Cleanup
+              </label>
               <div className="text-sm">
-                {config.lastRun ? formatDate(config.lastRun) : "Never"}
+                {config.cleanupConfig.lastRun
+                  ? formatDate(config.cleanupConfig.lastRun)
+                  : "Never"}
               </div>
             </div>
 
-            {config.enabled && (
+            {config.cleanupConfig.enabled && (
               <div className="flex-1">
-                <label className="block text-sm font-medium mb-1">Next Cleanup</label>
+                <label className="block text-sm font-medium mb-1">
+                  Next Cleanup
+                </label>
                 <div className="text-sm">
-                  {config.nextRun
-                    ? formatDate(config.nextRun)
-                    : config.enabled
-                      ? "Calculating..."
-                      : "Never"}
+                  {config.cleanupConfig.nextRun
+                    ? formatDate(config.cleanupConfig.nextRun)
+                    : config.cleanupConfig.enabled
+                    ? "Calculating..."
+                    : "Never"}
                 </div>
               </div>
             )}

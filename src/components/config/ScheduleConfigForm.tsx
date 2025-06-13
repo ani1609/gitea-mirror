@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "../ui/checkbox";
-import type { ScheduleConfig } from "@/types/config";
-import { formatDate } from "@/lib/utils";
+import type { ConfigState, ScheduleConfig } from "@/types/config";
+import { formatDate, updateNestedConfig } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -12,9 +12,9 @@ import {
 import { RefreshCw } from "lucide-react";
 
 interface ScheduleConfigFormProps {
-  config: ScheduleConfig;
-  setConfig: React.Dispatch<React.SetStateAction<ScheduleConfig>>;
-  onAutoSave?: (config: ScheduleConfig) => void;
+  config: ConfigState;
+  setConfig: React.Dispatch<React.SetStateAction<ConfigState>>;
+  onAutoSave?: (config: ConfigState) => Promise<void>;
   isAutoSaving?: boolean;
 }
 
@@ -24,18 +24,13 @@ export function ScheduleConfigForm({
   onAutoSave,
   isAutoSaving = false,
 }: ScheduleConfigFormProps) {
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target;
-    const newConfig = {
-      ...config,
-      [name]:
-        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
-    };
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    const newValue = type === "checkbox" ? checked : value;
+
+    const newConfig = updateNestedConfig(config, name, newValue);
     setConfig(newConfig);
 
-    // Trigger auto-save for schedule config changes
     if (onAutoSave) {
       onAutoSave(newConfig);
     }
@@ -66,12 +61,12 @@ export function ScheduleConfigForm({
           <div className="flex items-center">
             <Checkbox
               id="enabled"
-              name="enabled"
-              checked={config.enabled}
+              name="scheduleConfig.enabled"
+              checked={config.scheduleConfig.enabled}
               onCheckedChange={(checked) =>
                 handleChange({
                   target: {
-                    name: "enabled",
+                    name: "scheduleConfig.enabled",
                     type: "checkbox",
                     checked: Boolean(checked),
                     value: "",
@@ -87,7 +82,7 @@ export function ScheduleConfigForm({
             </label>
           </div>
 
-          {config.enabled && (
+          {config.scheduleConfig.enabled && (
             <div>
               <label
                 htmlFor="interval"
@@ -98,10 +93,10 @@ export function ScheduleConfigForm({
 
               <Select
                 name="interval"
-                value={String(config.interval)}
+                value={String(config.scheduleConfig.interval)}
                 onValueChange={(value) =>
                   handleChange({
-                    target: { name: "interval", value },
+                    target: { name: "scheduleConfig.interval", value },
                   } as React.ChangeEvent<HTMLInputElement>)
                 }
               >
@@ -126,8 +121,10 @@ export function ScheduleConfigForm({
               </p>
               <div className="mt-2 p-2 bg-muted/50 rounded-md">
                 <p className="text-xs text-muted-foreground">
-                  <strong>Sync Schedule:</strong> Repositories will be synchronized at the specified interval.
-                  Choose shorter intervals for frequently updated repositories, longer intervals for stable ones.
+                  <strong>Sync Schedule:</strong> Repositories will be
+                  synchronized at the specified interval. Choose shorter
+                  intervals for frequently updated repositories, longer
+                  intervals for stable ones.
                 </p>
               </div>
             </div>
@@ -135,17 +132,25 @@ export function ScheduleConfigForm({
 
           <div className="flex gap-x-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Last Sync</label>
+              <label className="block text-sm font-medium mb-1">
+                Last Sync
+              </label>
               <div className="text-sm">
-                {config.lastRun ? formatDate(config.lastRun) : "Never"}
+                {config.scheduleConfig.lastRun
+                  ? formatDate(config.scheduleConfig.lastRun)
+                  : "Never"}
               </div>
             </div>
 
-            {config.enabled && (
+            {config.scheduleConfig.enabled && (
               <div className="flex-1">
-                <label className="block text-sm font-medium mb-1">Next Sync</label>
+                <label className="block text-sm font-medium mb-1">
+                  Next Sync
+                </label>
                 <div className="text-sm">
-                  {config.nextRun ? formatDate(config.nextRun) : "Never"}
+                  {config.scheduleConfig.nextRun
+                    ? formatDate(config.scheduleConfig.nextRun)
+                    : "Never"}
                 </div>
               </div>
             )}

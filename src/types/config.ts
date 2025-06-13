@@ -52,10 +52,10 @@ export interface AdvancedOptions {
 
 export interface SaveConfigApiRequest {
   userId: string;
-  githubConfig: GitHubConfig;
-  giteaConfig: GiteaConfig;
-  scheduleConfig: ScheduleConfig;
-  cleanupConfig: DatabaseCleanupConfig;
+  githubConfig?: GitHubConfig;
+  giteaConfig?: GiteaConfig;
+  scheduleConfig?: ScheduleConfig;
+  cleanupConfig?: DatabaseCleanupConfig;
   mirrorOptions?: MirrorOptions;
   advancedOptions?: AdvancedOptions;
 }
@@ -88,3 +88,12 @@ export interface ConfigApiResponse {
   updatedAt: Date;
   error?: string;
 }
+
+export type ConfigState = {
+  githubConfig: GitHubConfig;
+  giteaConfig: GiteaConfig;
+  scheduleConfig: ScheduleConfig;
+  cleanupConfig: DatabaseCleanupConfig;
+  mirrorOptions: MirrorOptions;
+  advancedOptions: AdvancedOptions;
+};

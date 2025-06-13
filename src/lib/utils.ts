@@ -61,7 +61,8 @@ export function parseErrorMessage(error: unknown): ParsedErrorMessage {
         if (parsed.error) {
           return {
             title: parsed.error,
-            description: parsed.troubleshooting || parsed.errorType || undefined,
+            description:
+              parsed.troubleshooting || parsed.errorType || undefined,
             isStructured: true,
           };
         }
@@ -103,7 +104,8 @@ export function parseErrorMessage(error: unknown): ParsedErrorMessage {
     if (errorObj.error) {
       return {
         title: errorObj.error,
-        description: errorObj.troubleshooting || errorObj.errorType || undefined,
+        description:
+          errorObj.troubleshooting || errorObj.errorType || undefined,
         isStructured: true,
       };
     }
@@ -152,7 +154,7 @@ export function showErrorToast(error: unknown, toast: any) {
 
 export async function apiRequest<T>(
   endpoint: string,
-  options: (RequestInit & { data?: any }) = {}
+  options: RequestInit & { data?: any } = {}
 ): Promise<T> {
   try {
     // Handle the custom 'data' property by converting it to 'body'
@@ -170,16 +172,17 @@ export async function apiRequest<T>(
       finalOptions.body = JSON.stringify(data);
     }
 
-    const response = await httpRequest<T>(`${API_BASE}${endpoint}`, finalOptions);
+    const response = await httpRequest<T>(
+      `${API_BASE}${endpoint}`,
+      finalOptions
+    );
 
     return response.data;
   } catch (err) {
     const error = err as HttpError;
 
     const message =
-      error.response ||
-      error.message ||
-      "An unknown error occurred";
+      error.response || error.message || "An unknown error occurred";
 
     throw new Error(message);
   }
@@ -269,7 +272,7 @@ export function createSecureErrorResponse(
       /use post method/i,
     ];
 
-    const isSafeError = safeErrorPatterns.some(pattern =>
+    const isSafeError = safeErrorPatterns.some((pattern) =>
       pattern.test(error.message)
     );
 
@@ -288,4 +291,20 @@ export function createSecureErrorResponse(
       headers: { "Content-Type": "application/json" },
     }
   );
+}
+
+export function updateNestedConfig(obj: any, path: string, value: any): any {
+  const keys = path.split(".");
+  const newObj = { ...obj };
+  let current = newObj;
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    current[key] = { ...current[key] }; // clone intermediate objects
+    current = current[key];
+  }
+
+  current[keys[keys.length - 1]] = value;
+
+  return newObj;
 }
