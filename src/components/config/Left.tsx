@@ -95,7 +95,13 @@ export function LeftConfigForm({
           type="button"
           variant="outline"
           onClick={testConnection}
-          disabled={isLoading || !config.githubConfig.token}
+          disabled={
+            isLoading ||
+            !config.githubConfig.token ||
+            !config.giteaConfig.token ||
+            !config.giteaConfig.url ||
+            !config.githubConfig.username
+          }
         >
           {isLoading ? "Testing..." : "Test Connection"}
         </Button>
